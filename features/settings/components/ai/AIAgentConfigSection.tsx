@@ -15,7 +15,7 @@
  */
 
 import { useState } from 'react';
-import { Bot, Sparkles, AlertCircle } from 'lucide-react';
+import { Bot, Sparkles, AlertCircle, Timer } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AIConfigModeSelector, type AIConfigMode } from './AIConfigModeSelector';
 import { AIOnboarding } from './AIOnboarding';
@@ -134,6 +134,104 @@ export function AIAgentConfigSection() {
 
         {currentMode === 'advanced' && <AdvancedMode config={config} />}
       </div>
+
+      {/* AI Takeover */}
+      <AITakeoverSection config={config} onUpdate={updateConfig.mutateAsync} />
+    </div>
+  );
+}
+
+// =============================================================================
+// AI Takeover Section
+// =============================================================================
+
+function AITakeoverSection({
+  config,
+  onUpdate,
+}: {
+  config: ReturnType<typeof useAIConfigQuery>['data'];
+  onUpdate: (params: { ai_takeover_enabled?: boolean; ai_takeover_minutes?: number }) => Promise<unknown>;
+}) {
+  const takeoverEnabled = config?.ai_takeover_enabled ?? false;
+  const takeoverMinutes = config?.ai_takeover_minutes ?? 15;
+
+  const handleToggle = async () => {
+    try {
+      await onUpdate({ ai_takeover_enabled: !takeoverEnabled });
+    } catch (e) {
+      console.error('[AITakeover] Toggle failed:', e);
+    }
+  };
+
+  const handleMinutesChange = async (minutes: number) => {
+    const clamped = Math.max(5, Math.min(120, minutes));
+    try {
+      await onUpdate({ ai_takeover_minutes: clamped });
+    } catch (e) {
+      console.error('[AITakeover] Minutes update failed:', e);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-1.5 bg-amber-100 dark:bg-amber-900/20 rounded-lg text-amber-600 dark:text-amber-400">
+            <Timer size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              AI Takeover
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              AI assume quando o operador ficar inativo
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={takeoverEnabled}
+          onClick={handleToggle}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+            takeoverEnabled
+              ? 'bg-amber-500'
+              : 'bg-slate-200 dark:bg-slate-700'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+              takeoverEnabled ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
+
+      {takeoverEnabled && (
+        <div className="mt-4 pl-10">
+          <label className="flex items-center gap-3">
+            <span className="text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+              Tempo de inatividade:
+            </span>
+            <select
+              value={takeoverMinutes}
+              onChange={(e) => handleMinutesChange(Number(e.target.value))}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            >
+              <option value={5}>5 minutos</option>
+              <option value={10}>10 minutos</option>
+              <option value={15}>15 minutos</option>
+              <option value={30}>30 minutos</option>
+              <option value={60}>1 hora</option>
+              <option value={120}>2 horas</option>
+            </select>
+          </label>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+            Se o operador atribuído não responder dentro deste tempo, o AI assume a conversa automaticamente.
+            Quando o operador voltar a responder, o AI cede o controle.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

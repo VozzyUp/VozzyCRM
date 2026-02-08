@@ -43,6 +43,8 @@ export interface OrgAIConfig {
   configMode: AIConfigMode;
   learnedPatterns: LearnedPattern | null;
   templateId: string | null;
+  takeoverEnabled: boolean;
+  takeoverMinutes: number;
 }
 
 /**
@@ -55,7 +57,7 @@ export async function getOrgAIConfig(
   const { data: orgSettings, error } = await supabase
     .from('organization_settings')
     .select(
-      'ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key, ai_hitl_threshold, ai_config_mode, ai_learned_patterns, ai_template_id'
+      'ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key, ai_hitl_threshold, ai_config_mode, ai_learned_patterns, ai_template_id, ai_takeover_enabled, ai_takeover_minutes'
     )
     .eq('organization_id', organizationId)
     .maybeSingle();
@@ -113,6 +115,8 @@ export async function getOrgAIConfig(
     configMode: (orgSettings.ai_config_mode as AIConfigMode) || 'zero_config',
     learnedPatterns,
     templateId: orgSettings.ai_template_id || null,
+    takeoverEnabled: orgSettings.ai_takeover_enabled === true,
+    takeoverMinutes: orgSettings.ai_takeover_minutes ?? 15,
   };
 }
 
@@ -155,10 +159,10 @@ export async function processIncomingMessage(
 
   console.log('[AIAgent] Processing message:', { conversationId, messageId });
 
-  // 1. Buscar deal associado à conversa para pegar o stage
+  // 1. Buscar deal associado à conversa para pegar o stage + assignment
   const { data: conversation } = await supabase
     .from('messaging_conversations')
-    .select('metadata')
+    .select('metadata, assigned_user_id, assigned_at')
     .eq('id', conversationId)
     .single();
 
@@ -236,6 +240,29 @@ export async function processIncomingMessage(
         reason: 'AI desabilitado para esta organização',
       },
     };
+  }
+
+  // 4b. Verificar inatividade do operador (AI Takeover)
+  if (aiConfig.takeoverEnabled && conversation?.assigned_user_id) {
+    const operatorActive = await isOperatorActive(
+      supabase,
+      conversationId,
+      conversation.assigned_at,
+      aiConfig.takeoverMinutes
+    );
+
+    if (operatorActive) {
+      console.log('[AIAgent] Operator is active, skipping AI response');
+      return {
+        success: true,
+        decision: {
+          action: 'skipped',
+          reason: `Operador ativo (última mensagem há menos de ${aiConfig.takeoverMinutes} min)`,
+        },
+      };
+    }
+
+    console.log(`[AIAgent] Operator inactive for >${aiConfig.takeoverMinutes}min, AI taking over`);
   }
 
   // 5. Montar contexto do lead
@@ -714,6 +741,37 @@ async function logAIInteraction(params: {
 // =============================================================================
 // Helpers
 // =============================================================================
+
+/**
+ * Verifica se o operador atribuído enviou mensagem recentemente.
+ * Compara o tempo desde a última mensagem outbound do operador (ou assignment)
+ * contra o limiar de takeover.
+ */
+async function isOperatorActive(
+  supabase: SupabaseClient,
+  conversationId: string,
+  assignedAt: string | null,
+  takeoverMinutes: number
+): Promise<boolean> {
+  const { data: lastUserMessage } = await supabase
+    .from('messaging_messages')
+    .select('created_at')
+    .eq('conversation_id', conversationId)
+    .eq('direction', 'outbound')
+    .eq('sender_type', 'user')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const referenceTime = lastUserMessage?.created_at || assignedAt;
+
+  if (!referenceTime) {
+    return false; // Nunca respondeu e não tem assignment → inativo
+  }
+
+  const minutesSince = (Date.now() - new Date(referenceTime).getTime()) / 60000;
+  return minutesSince < takeoverMinutes;
+}
 
 function checkHandoffKeywords(message: string, keywords: string[]): string | null {
   const lowerMessage = message.toLowerCase();

@@ -27,6 +27,8 @@ export interface OrgAIConfig {
   ai_template_id: string | null;
   ai_learned_patterns: Record<string, unknown>;
   ai_hitl_threshold: number;
+  ai_takeover_enabled: boolean;
+  ai_takeover_minutes: number;
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +93,8 @@ interface UpdateAIConfigParams {
   ai_template_id?: string | null;
   ai_learned_patterns?: Record<string, unknown>;
   ai_hitl_threshold?: number;
+  ai_takeover_enabled?: boolean;
+  ai_takeover_minutes?: number;
 }
 
 export function useUpdateAIConfigMutation() {
