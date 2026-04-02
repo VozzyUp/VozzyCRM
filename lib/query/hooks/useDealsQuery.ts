@@ -631,13 +631,14 @@ export const useCreateDealWithContact = () => {
 
       // Create company if name provided
       if (relatedData?.companyName) {
-        const { data: company } = await companiesService.create({ name: relatedData.companyName });
+        const { data: company, error: companyError } = await companiesService.create({ name: relatedData.companyName });
+        if (companyError) throw companyError;
         if (company) finalCompanyId = company.id;
       }
 
       // Create contact if provided
       if (relatedData?.contact?.name) {
-        const { data: contact } = await contactsService.create({
+        const { data: contact, error: contactError } = await contactsService.create({
           name: relatedData.contact.name,
           email: relatedData.contact.email || '',
           phone: relatedData.contact.phone || '',
@@ -645,6 +646,7 @@ export const useCreateDealWithContact = () => {
           status: 'ACTIVE',
           stage: 'LEAD',
         });
+        if (contactError) throw contactError;
         if (contact) finalContactId = contact.id;
       }
 
@@ -657,6 +659,7 @@ export const useCreateDealWithContact = () => {
       return createdDeal!;
     },
     onMutate: async ({ deal, relatedData }) => {
+      await queryClient.cancelQueries({ queryKey: DEALS_VIEW_KEY });
       const tempId = `temp-${Date.now()}`;
       const tempDeal: DealView = {
         ...(deal as any),
@@ -691,10 +694,10 @@ export const useCreateDealWithContact = () => {
       });
     },
     onError: (_err, _vars, context) => {
-      const { tempId } = context as { tempId: string };
-      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
-        old.filter((d) => d.id !== tempId)
-      );
+      const tempId = (context as any)?.tempId as string | undefined;
+      if (tempId) {
+        queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) => old.filter(d => d.id !== tempId));
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });

@@ -41,7 +41,7 @@ export const useOrgSettings = (options?: { enabled?: boolean }) => {
   const externalEnabled = options?.enabled ?? true;
 
   return useQuery<MergedOrgSettings>({
-    queryKey: queryKeys.orgSettings.lists(),
+    queryKey: queryKeys.orgSettings.detail('merged'),
     queryFn: async () => {
       // 1. Fetch user-level settings (per-user prefs: aiThinking, aiSearch, etc.)
       const { data: settings, error: settingsError } = await settingsService.get();
