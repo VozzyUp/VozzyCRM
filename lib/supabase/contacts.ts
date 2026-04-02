@@ -281,13 +281,13 @@ export const contactsService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
-      // Safety limit: Prevent unbounded queries when pagination isn't used
-      // For paginated access, use getAllPaginated() instead
+      // Safety limit: cap at 1000 for non-paginated access.
+      // For full datasets, use getAllPaginated() with cursor pagination.
       const { data, error } = await supabase
         .from('contacts')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10000);
+        .limit(1000);
 
       if (error) return { data: null, error };
       return { data: (data || []).map(c => transformContact(c as DbContact)), error: null };
@@ -624,12 +624,12 @@ export const companiesService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
-      // Safety limit: Prevent unbounded queries
+      // Safety limit: cap at 1000 for non-paginated access
       const { data, error } = await supabase
         .from('crm_companies')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10000);
+        .limit(1000);
 
       if (error) return { data: null, error };
       return { data: (data || []).map(c => transformCRMCompany(c as DbCRMCompany)), error: null };

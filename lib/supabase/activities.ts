@@ -138,7 +138,8 @@ export const activitiesService = {
           *,
           deals:deal_id (title)
         `)
-        .order('date', { ascending: false }); // Ordenação básica do banco
+        .order('date', { ascending: false })
+        .limit(1000); // Safety limit for non-paginated access
 
       if (error) return { data: null, error };
       

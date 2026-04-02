@@ -262,6 +262,7 @@ export const dealsService = {
       // Embedded select: traz deal_items junto com deals em UMA query
       // Elimina N+1: antes carregava TODOS items e filtrava no cliente
       // Agora o Postgres já retorna os items aninhados por deal
+      // Safety limit: cap at 1000 deals for non-paginated access
       let dealsQuery = supabase
         .from('deals')
         .select(`
@@ -270,7 +271,8 @@ export const dealsService = {
         `);
       if (options?.signal) dealsQuery = dealsQuery.abortSignal(options.signal);
       const { data, error } = await dealsQuery
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (error) return { data: null, error };
 
